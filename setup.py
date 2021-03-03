@@ -1,18 +1,18 @@
+# Copyright (c) 2021 NateScarlet
 # Copyright (c) 2014-2017 Matthias C. M. Troffaes
 # Copyright (c) 2012-2014 Antoine Pitrou and contributors
 # Distributed under the terms of the MIT License.
 
-import io
-from setuptools import setup, find_packages
+
+from setuptools import find_packages, setup
 
 
-def readfile(filename):
-    with io.open(filename, encoding="utf-8") as stream:
-        return stream.read().split("\n")
+with open("README.md", "r", encoding="utf-8") as fh:
+    long_description = fh.read()
 
+with open("VERSION", "r", encoding="utf-8") as fh:
+    version = fh.read()
 
-readme = readfile("README.rst")[5:]  # skip title and badges
-version = readfile("VERSION")[0].strip()
 
 setup(
     name='pathlib2-unicode',
@@ -20,7 +20,8 @@ setup(
     packages=find_packages(),
     license='MIT',
     description='Object-oriented filesystem paths handles unicode.',
-    long_description="\n".join(readme[2:]),
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     author='NateScarlet',
     author_email='NateScarlet@Gmail.com',
     classifiers=[

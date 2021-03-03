@@ -9,4 +9,4 @@ build:
 	$(PYTHON) -m build -w
 
 publish:
-	$(PYTHON) -m twine upload --repository testpypi dist/*
+	$(PYTHON) -m twine upload dist/*

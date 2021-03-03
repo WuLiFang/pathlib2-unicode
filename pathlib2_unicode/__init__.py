@@ -33,6 +33,7 @@ except ImportError:
 
 try:
     _ = intern
+
     def _intern_unicode(s):
         assert isinstance(s, six.text_type)
         return s
@@ -75,13 +76,6 @@ _IGNORED_WINERRORS = (
 def _ignore_error(exception):
     return (getattr(exception, 'errno', None) in _IGNORED_ERROS or
             getattr(exception, 'winerror', None) in _IGNORED_WINERRORS)
-
-
-def _py2_fsencode(parts):
-    # py2 => minimal unicode support
-    assert six.PY2
-    return [part.encode('ascii') if isinstance(part, six.text_type)
-            else part for part in parts]
 
 
 def _try_except_fileexistserror(try_func, except_func, else_func=None):
@@ -1388,7 +1382,8 @@ class Path(PurePath):
             return self
         # FIXME this must defer to the specific flavour (and, under Windows,
         # use nt._getfullpathname())
-        obj = self._from_parts([six.text_type(os.getcwd())] + self._parts, init=False)
+        obj = self._from_parts(
+            [six.text_type(os.getcwd())] + self._parts, init=False)
         obj._init(template=self)
         return obj
 

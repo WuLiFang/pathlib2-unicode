@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2014 Antoine Pitrou and contributors
 # Distributed under the terms of the MIT License.
 
+from __future__ import unicode_literals
 import ctypes
 import fnmatch
 import functools
@@ -29,11 +30,13 @@ try:
 except ImportError:
     from urllib.parse import quote_from_bytes as urlquote_from_bytes
 
-
 try:
-    intern = intern
+    _ = intern
+    def _intern_unicode(s):
+        assert isinstance(s, six.text_type)
+        return s
 except NameError:
-    intern = sys.intern
+    _intern_unicode = sys.intern
 
 supports_symlinks = True
 if os.name == 'nt':
@@ -54,7 +57,7 @@ except ImportError:
 __all__ = [
     "PurePath", "PurePosixPath", "PureWindowsPath",
     "Path", "PosixPath", "WindowsPath",
-    ]
+]
 
 #
 # Internals
@@ -231,8 +234,6 @@ class _Flavour(object):
         self.join = self.sep.join
 
     def parse_parts(self, parts):
-        if six.PY2:
-            parts = _py2_fsencode(parts)
         parsed = []
         sep = self.sep
         altsep = self.altsep
@@ -247,10 +248,10 @@ class _Flavour(object):
             if sep in rel:
                 for x in reversed(rel.split(sep)):
                     if x and x != '.':
-                        parsed.append(intern(x))
+                        parsed.append(_intern_unicode(x))
             else:
                 if rel and rel != '.':
-                    parsed.append(intern(rel))
+                    parsed.append(_intern_unicode(rel))
             if drv or root:
                 if not drv:
                     # If no drive is present, try to find one in the previous
@@ -306,7 +307,7 @@ class _WindowsFlavour(_Flavour):
         set(['CON', 'PRN', 'AUX', 'NUL']) |
         set(['COM%d' % i for i in range(1, 10)]) |
         set(['LPT%d' % i for i in range(1, 10)])
-        )
+    )
 
     # Interesting findings about extended paths:
     # - '\\?\c:\a', '//?/c:\a' and '//?/c:/a' are all supported
@@ -360,7 +361,7 @@ class _WindowsFlavour(_Flavour):
         return [p.lower() for p in parts]
 
     def resolve(self, path, strict=False):
-        s = str(path)
+        s = six.text_type(path)
         if not s:
             return os.getcwd()
         previous_s = None
@@ -462,7 +463,7 @@ class _WindowsFlavour(_Flavour):
                     userhome = drv + root + self.join(parts[1:])
                 else:
                     userhome = self.join(parts)
-        return userhome
+        return six.text_type(userhome)
 
 
 class _PosixFlavour(_Flavour):
@@ -540,7 +541,7 @@ class _PosixFlavour(_Flavour):
         # NOTE: according to POSIX, getcwd() cannot contain path components
         # which are symlinks.
         base = '' if path.is_absolute() else os.getcwd()
-        return _resolve(base, str(path)) or sep
+        return _resolve(base, six.text_type(path)) or sep
 
     def is_reserved(self, parts):
         return False
@@ -554,14 +555,14 @@ class _PosixFlavour(_Flavour):
     def gethomedir(self, username):
         if not username:
             try:
-                return os.environ['HOME']
+                return six.text_type(os.environ['HOME'])
             except KeyError:
                 import pwd
-                return pwd.getpwuid(os.getuid()).pw_dir
+                return six.text_type(pwd.getpwuid(os.getuid()).pw_dir)
         else:
             import pwd
             try:
-                return pwd.getpwnam(username).pw_dir
+                return six.text_type(pwd.getpwnam(username).pw_dir)
             except KeyError:
                 raise RuntimeError("Can't determine home directory "
                                    "for %r" % username)
@@ -582,13 +583,13 @@ class _NormalAccessor(_Accessor):
     def _wrap_strfunc(strfunc):
         @functools.wraps(strfunc)
         def wrapped(pathobj, *args):
-            return strfunc(str(pathobj), *args)
+            return strfunc(six.text_type(pathobj), *args)
         return staticmethod(wrapped)
 
     def _wrap_binary_strfunc(strfunc):
         @functools.wraps(strfunc)
         def wrapped(pathobjA, pathobjB, *args):
-            return strfunc(str(pathobjA), str(pathobjB), *args)
+            return strfunc(six.text_type(pathobjA), six.text_type(pathobjB), *args)
         return staticmethod(wrapped)
 
     stat = _wrap_strfunc(os.stat)
@@ -631,7 +632,7 @@ class _NormalAccessor(_Accessor):
         # Under POSIX, os.symlink() takes two args
         @staticmethod
         def symlink(a, b, target_is_directory):
-            return os.symlink(str(a), str(b))
+            return os.symlink(six.text_type(a), six.text_type(b))
 
     utime = _wrap_strfunc(os.utime)
 
@@ -833,6 +834,7 @@ class _PathParents(Sequence):
         return "<{0}.parents>".format(self._pathcls.__name__)
 
 
+@six.python_2_unicode_compatible
 class PurePath(object):
 
     """PurePath represents a filesystem path and offers operations which
@@ -876,21 +878,13 @@ class PurePath(object):
                     # duck typing for older Python versions
                     if hasattr(a, "__fspath__"):
                         a = a.__fspath__()
-                if isinstance(a, str):
+                if isinstance(a, six.text_type):
                     # Force-cast str subclasses to str (issue #21127)
-                    parts.append(str(a))
-                # also handle unicode for PY2 (six.text_type = unicode)
-                elif six.PY2 and isinstance(a, six.text_type):
-                    # cast to str using filesystem encoding
-                    # note: in rare circumstances, on Python < 3.2,
-                    # getfilesystemencoding can return None, in that
-                    # case fall back to ascii
-                    parts.append(a.encode(
-                        sys.getfilesystemencoding() or "ascii"))
+                    parts.append(six.text_type(a))
                 else:
                     raise TypeError(
-                        "argument should be a str object or an os.PathLike "
-                        "object returning str, not %r"
+                        "argument should be a six.text_type object or an os.PathLike "
+                        "object returning six.text_type, not %r"
                         % type(a))
         return cls._flavour.parse_parts(parts)
 
@@ -945,20 +939,20 @@ class PurePath(object):
             return self._str
 
     def __fspath__(self):
-        return str(self)
+        return six.text_type(self)
 
     def as_posix(self):
         """Return the string representation of the path with forward (/)
         slashes."""
         f = self._flavour
-        return str(self).replace(f.sep, '/')
+        return six.text_type(self).replace(f.sep, '/')
 
     def __bytes__(self):
         """Return the bytes representation of the path.  This is only
         recommended to use under Unix."""
         if sys.version_info < (3, 2):
             raise NotImplementedError("needs Python 3.2 or later")
-        return os.fsencode(str(self))
+        return os.fsencode(six.text_type(self))
 
     def __repr__(self):
         return "{0}({1!r})".format(self.__class__.__name__, self.as_posix())
@@ -1129,7 +1123,7 @@ class PurePath(object):
         if (root or drv) if n == 0 else cf(abs_parts[:n]) != cf(to_abs_parts):
             formatted = self._format_parsed_parts(to_drv, to_root, to_parts)
             raise ValueError("{0!r} does not start with {1!r}"
-                             .format(str(self), str(formatted)))
+                             .format(six.text_type(self), six.text_type(formatted)))
         return self._from_parsed_parts('', root if n == 1 else '',
                                        abs_parts[n:])
 
@@ -1311,7 +1305,7 @@ class Path(PurePath):
         """Return a new path pointing to the current working directory
         (as returned by os.getcwd()).
         """
-        return cls(os.getcwd())
+        return cls(six.text_type(os.getcwd()))
 
     @classmethod
     def home(cls):
@@ -1393,7 +1387,7 @@ class Path(PurePath):
             return self
         # FIXME this must defer to the specific flavour (and, under Windows,
         # use nt._getfullpathname())
-        obj = self._from_parts([os.getcwd()] + self._parts, init=False)
+        obj = self._from_parts([six.text_type(os.getcwd())] + self._parts, init=False)
         obj._init(template=self)
         return obj
 
@@ -1418,10 +1412,10 @@ class Path(PurePath):
                 pass
 
             _try_except_filenotfounderror(_try_func, _exc_func)
-            s = str(self.absolute())
+            s = six.text_type(self.absolute())
         else:
             # ensure s is a string (normpath requires this on older python)
-            s = str(s)
+            s = six.text_type(s)
         # Now we have no symlinks in the path, it's safe to normalize it.
         normed = self._flavour.pathmod.normpath(s)
         obj = self._from_parts((normed,), init=False)
@@ -1459,10 +1453,11 @@ class Path(PurePath):
             self._raise_closed()
         if sys.version_info >= (3, 3):
             return io.open(
-                str(self), mode, buffering, encoding, errors, newline,
+                six.text_type(
+                    self), mode, buffering, encoding, errors, newline,
                 opener=self._opener)
         else:
-            return io.open(str(self), mode, buffering,
+            return io.open(six.text_type(self), mode, buffering,
                            encoding, errors, newline)
 
     def read_bytes(self):

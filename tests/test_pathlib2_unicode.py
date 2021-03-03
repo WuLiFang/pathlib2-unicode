@@ -1,12 +1,13 @@
+# Copyright (c) 2021 NateScarlet
 # Copyright (c) 2014-2017 Matthias C. M. Troffaes
 # Copyright (c) 2012-2014 Antoine Pitrou and contributors
 # Distributed under the terms of the MIT License.
 
-
+from __future__ import unicode_literals
 import io
 import os
 import errno
-import pathlib2 as pathlib
+import pathlib2_unicode as pathlib
 import pickle
 import six
 import socket
@@ -109,10 +110,10 @@ class _BaseFlavourTest(object):
             self.assertEqual(actual, expected)
         drv, root, parts = actual
         # neither bytes (py3) nor unicode (py2)
-        self.assertIsInstance(drv, str)
-        self.assertIsInstance(root, str)
+        self.assertIsInstance(drv, six.text_type)
+        self.assertIsInstance(root, six.text_type)
         for p in parts:
-            self.assertIsInstance(p, str)
+            self.assertIsInstance(p, six.text_type)
 
     def test_parse_parts_common(self):
         check = self._check_parse_parts
@@ -263,13 +264,13 @@ class _BasePurePathTest(object):
             ('a/b/',), ('a//b',), ('a//b//',),
             # empty components get removed
             ('', 'a', 'b'), ('a', '', 'b'), ('a', 'b', ''),
-            ],
+        ],
         '/b/c/d': [
             ('a', '/b/c', 'd'), ('a', '///b//c', 'd/'),
             ('/a', '/b/c', 'd'),
             # empty components get removed
             ('/', 'b', '', 'c/d'), ('/', '', 'b/c/d'), ('', '/b/c/d'),
-            ],
+        ],
     }
 
     def setUp(self):
@@ -297,24 +298,24 @@ class _BasePurePathTest(object):
         self.assertEqual(P(P('a'), P('b')), P('a/b'))
         self.assertEqual(P(P('a'), P('b'), P('c')), P(PathLike()))
 
-    def _check_str_subclass(self, *args):
+    def _check_text_subclass(self, *args):
         # Issue #21127: it should be possible to construct a PurePath object
         # from a str subclass instance, and it then gets converted to
         # a pure str object.
-        class StrSubclass(str):
+        class StrSubclass(six.text_type):
             pass
         P = self.cls
         p = P(*(StrSubclass(x) for x in args))
         self.assertEqual(p, P(*args))
         for part in p.parts:
-            self.assertIs(type(part), str)
+            self.assertIs(type(part), six.text_type)
 
     def test_str_subclass_common(self):
-        self._check_str_subclass('')
-        self._check_str_subclass('.')
-        self._check_str_subclass('a')
-        self._check_str_subclass('a/b.txt')
-        self._check_str_subclass('/a/b.txt')
+        self._check_text_subclass('')
+        self._check_text_subclass('.')
+        self._check_text_subclass('a')
+        self._check_text_subclass('a/b.txt')
+        self._check_text_subclass('/a/b.txt')
 
     def test_join_common(self):
         P = self.cls
@@ -347,17 +348,17 @@ class _BasePurePathTest(object):
         pp = p / '/c'
         self.assertEqual(pp, P('/c'))
 
-    def _check_str(self, expected, args):
+    def _check_text(self, expected, args):
         p = self.cls(*args)
-        self.assertEqual(str(p), expected.replace('/', self.sep))
+        self.assertEqual(six.text_type(p), expected.replace('/', self.sep))
 
     def test_str_common(self):
         # Canonicalized paths roundtrip
         for pathstr in ('a', 'a/b', 'a/b/c', '/', '/a/b', '/a/b/c'):
-            self._check_str(pathstr, (pathstr,))
+            self._check_text(pathstr, (pathstr,))
         # Special case for the empty path
-        self._check_str('.', ('',))
-        # Other tests for str() are in test_equivalences()
+        self._check_text('.', ('',))
+        # Other tests for six.text_type() are in test_equivalences()
 
     def test_as_posix_common(self):
         P = self.cls
@@ -490,9 +491,9 @@ class _BasePurePathTest(object):
     def test_fspath_common(self):
         P = self.cls
         p = P('a/b')
-        self._check_str(p.__fspath__(), ('a/b',))
+        self._check_text(p.__fspath__(), ('a/b',))
         if sys.version_info >= (3, 6):
-            self._check_str(os.fspath(p), ('a/b',))
+            self._check_text(os.fspath(p), ('a/b',))
 
     def test_equivalences(self):
         for k, tuples in self.equivalences.items():
@@ -502,14 +503,14 @@ class _BasePurePathTest(object):
                 tuples = tuples + [
                     tuple(part.replace('/', self.sep) for part in t)
                     for t in tuples
-                    ]
+                ]
                 tuples.append((posix, ))
             pcanon = self.cls(canon)
             for t in tuples:
                 p = self.cls(*t)
                 self.assertEqual(p, pcanon, "failed with args {0}".format(t))
                 self.assertEqual(hash(p), hash(pcanon))
-                self.assertEqual(str(p), canon)
+                self.assertEqual(six.text_type(p), canon)
                 self.assertEqual(p.as_posix(), posix)
 
     def test_parent_common(self):
@@ -724,7 +725,7 @@ class _BasePurePathTest(object):
             self.assertIs(pp.__class__, p.__class__)
             self.assertEqual(pp, p)
             self.assertEqual(hash(pp), hash(p))
-            self.assertEqual(str(pp), str(p))
+            self.assertEqual(six.text_type(pp), six.text_type(p))
 
     # note: this is a new test not part of upstream
     # test that unicode works on Python 2
@@ -822,35 +823,37 @@ class PureWindowsPathTest(_BasePurePathTest, unittest.TestCase):
         'c:/a': [
             ('c:/', 'a'), ('c:', '/', 'a'), ('c:', '/a'),
             ('/z', 'c:/', 'a'), ('//x/y', 'c:/', 'a'),
-            ],
+        ],
         '//a/b/': [('//a/b',)],
         '//a/b/c': [
             ('//a/b', 'c'), ('//a/b/', 'c'),
-            ],
+        ],
     })
 
-    def test_str(self):
+    def text_text(self):
         p = self.cls('a/b/c')
-        self.assertEqual(str(p), 'a\\b\\c')
+        self.assertEqual(six.text_type(p), 'a\\b\\c')
         p = self.cls('c:/a/b/c')
-        self.assertEqual(str(p), 'c:\\a\\b\\c')
+        self.assertEqual(six.text_type(p), 'c:\\a\\b\\c')
         p = self.cls('//a/b')
-        self.assertEqual(str(p), '\\\\a\\b\\')
+        self.assertEqual(six.text_type(p), '\\\\a\\b\\')
         p = self.cls('//a/b/c')
-        self.assertEqual(str(p), '\\\\a\\b\\c')
+        self.assertEqual(six.text_type(p), '\\\\a\\b\\c')
         p = self.cls('//a/b/c/d')
-        self.assertEqual(str(p), '\\\\a\\b\\c\\d')
+        self.assertEqual(six.text_type(p), '\\\\a\\b\\c\\d')
+        p = self.cls('//测试')
+        self.assertEqual(six.text_type(p), '\\测试')
 
     def test_str_subclass(self):
-        self._check_str_subclass('c:')
-        self._check_str_subclass('c:a')
-        self._check_str_subclass('c:a\\b.txt')
-        self._check_str_subclass('c:\\')
-        self._check_str_subclass('c:\\a')
-        self._check_str_subclass('c:\\a\\b.txt')
-        self._check_str_subclass('\\\\some\\share')
-        self._check_str_subclass('\\\\some\\share\\a')
-        self._check_str_subclass('\\\\some\\share\\a\\b.txt')
+        self._check_text_subclass('c:')
+        self._check_text_subclass('c:a')
+        self._check_text_subclass('c:a\\b.txt')
+        self._check_text_subclass('c:\\')
+        self._check_text_subclass('c:\\a')
+        self._check_text_subclass('c:\\a\\b.txt')
+        self._check_text_subclass('\\\\some\\share')
+        self._check_text_subclass('\\\\some\\share\\a')
+        self._check_text_subclass('\\\\some\\share\\a\\b.txt')
 
     def test_eq(self):
         P = self.cls
@@ -1136,8 +1139,8 @@ class PureWindowsPathTest(_BasePurePathTest, unittest.TestCase):
         p = P('C:/Foo/Bar')
         self.assertEqual(p.relative_to(P('c:')), P('/Foo/Bar'))
         self.assertEqual(p.relative_to('c:'), P('/Foo/Bar'))
-        self.assertEqual(str(p.relative_to(P('c:'))), '\\Foo\\Bar')
-        self.assertEqual(str(p.relative_to('c:')), '\\Foo\\Bar')
+        self.assertEqual(six.text_type(p.relative_to(P('c:'))), '\\Foo\\Bar')
+        self.assertEqual(six.text_type(p.relative_to('c:')), '\\Foo\\Bar')
         self.assertEqual(p.relative_to(P('c:/')), P('Foo/Bar'))
         self.assertEqual(p.relative_to('c:/'), P('Foo/Bar'))
         self.assertEqual(p.relative_to(P('c:/foO')), P('Bar'))
@@ -1289,7 +1292,7 @@ class PurePathTest(_BasePurePathTest, unittest.TestCase):
 #
 
 # Make sure any symbolic links in the base test path are resolved
-BASE = os.path.realpath(TESTFN)
+BASE = six.text_type(os.path.realpath(TESTFN))
 
 
 def join(*x):
@@ -1385,7 +1388,7 @@ class _BasePathTest(object):
             os.symlink(src, dest)
 
     def assertSame(self, path_a, path_b):
-        self.assertTrue(os.path.samefile(str(path_a), str(path_b)),
+        self.assertTrue(os.path.samefile(six.text_type(path_a), six.text_type(path_b)),
                         "%r and %r don't point to the same file" %
                         (path_a, path_b))
 
@@ -1416,9 +1419,9 @@ class _BasePathTest(object):
             self.assertEqual(cm.exception.errno, errno.EEXIST)
 
     def _test_cwd(self, p):
-        q = self.cls(os.getcwd())
+        q = self.cls(six.text_type(os.getcwd()))
         self.assertEqual(p, q)
-        self.assertEqual(str(p), str(q))
+        self.assertEqual(six.text_type(p), six.text_type(q))
         self.assertIs(type(p), type(q))
         self.assertTrue(p.is_absolute())
 
@@ -1429,7 +1432,7 @@ class _BasePathTest(object):
     def _test_home(self, p):
         q = self.cls(os.path.expanduser('~'))
         self.assertEqual(p, q)
-        self.assertEqual(str(p), str(q))
+        self.assertEqual(six.text_type(p), six.text_type(q))
         self.assertIs(type(p), type(q))
         self.assertTrue(p.is_absolute())
 
@@ -1508,21 +1511,23 @@ class _BasePathTest(object):
         self.assertEqual((p / 'fileA').read_bytes(), b'abcdefg')
         # check that trying to write str does not truncate the file
         with self.assertRaises(TypeError) as cm:
-            (p / 'fileA').write_bytes(six.u('somestr'))
-        self.assertTrue(str(cm.exception).startswith('data must be'))
+            (p / 'fileA').write_bytes('somestr')
+        self.assertTrue(six.text_type(cm.exception).startswith('data must be'))
         self.assertEqual((p / 'fileA').read_bytes(), b'abcdefg')
 
     def test_read_write_text(self):
         p = self.cls(BASE)
-        (p / 'fileA').write_text(six.u('\u00e4bcdefg'), encoding='latin-1')
+        (p / 'fileA').write_text('\u00e4bcdefg', encoding='latin-1')
         self.assertEqual((p / 'fileA').read_text(
-            encoding='utf-8', errors='ignore'), six.u('bcdefg'))
+            encoding='utf-8', errors='ignore'), 'bcdefg')
         # check that trying to write bytes does not truncate the file
         with self.assertRaises(TypeError) as cm:
             (p / 'fileA').write_text(b'somebytes')
-        self.assertTrue(str(cm.exception).startswith('data must be'))
-        self.assertEqual((p / 'fileA').read_text(encoding='latin-1'),
-                         six.u('\u00e4bcdefg'))
+        self.assertTrue(six.text_type(cm.exception).startswith('data must be'))
+        self.assertEqual(
+            (p / 'fileA').read_text(encoding='latin-1'),
+            '\u00e4bcdefg',
+        )
 
     def test_iterdir(self):
         P = self.cls
@@ -1609,15 +1614,15 @@ class _BasePathTest(object):
         p = P(BASE)
         given = set(p.rglob('*'))
         expect = set([
-                  'brokenLink',
-                  'dirA', 'dirA/linkC',
-                  'dirB', 'dirB/fileB', 'dirB/linkD',
-                  'dirC', 'dirC/dirD', 'dirC/dirD/fileD', 'dirC/fileC',
-                  'dirE',
-                  'fileA',
-                  'linkA',
-                  'linkB',
-                  ])
+            'brokenLink',
+            'dirA', 'dirA/linkC',
+            'dirB', 'dirB/fileB', 'dirB/linkD',
+            'dirC', 'dirC/dirD', 'dirC/dirD/fileD', 'dirC/fileC',
+            'dirE',
+            'fileA',
+            'linkA',
+            'linkB',
+        ])
         self.assertEqual(given, set([p / x for x in expect]))
 
     def test_glob_dotdot(self):
@@ -1644,13 +1649,13 @@ class _BasePathTest(object):
             p.resolve(strict=True)
         self.assertEqual(cm.exception.errno, errno.ENOENT)
         # Non-strict
-        self.assertEqual(str(p.resolve(strict=False)),
+        self.assertEqual(six.text_type(p.resolve(strict=False)),
                          os.path.join(BASE, 'foo'))
         p = P(BASE, 'foo', 'in', 'spam')
-        self.assertEqual(str(p.resolve(strict=False)),
+        self.assertEqual(six.text_type(p.resolve(strict=False)),
                          os.path.join(BASE, 'foo', 'in', 'spam'))
         p = P(BASE, '..', 'foo', 'in', 'spam')
-        self.assertEqual(str(p.resolve(strict=False)),
+        self.assertEqual(six.text_type(p.resolve(strict=False)),
                          os.path.abspath(os.path.join('foo', 'in', 'spam')))
         # These are all relative symlinks
         p = P(BASE, 'dirB', 'fileB')
@@ -1840,7 +1845,7 @@ class _BasePathTest(object):
         # Rewind the mtime sufficiently far in the past to work around
         # filesystem-specific timestamp granularity.
         old_mtime = p.stat().st_mtime - 10
-        os.utime(str(p), (old_mtime, old_mtime))
+        os.utime(six.text_type(p), (old_mtime, old_mtime))
         # The file mtime should be refreshed by calling touch() again
         p.touch()
         self.assertGreaterEqual(p.stat().st_mtime, old_mtime)
@@ -1959,7 +1964,7 @@ class _BasePathTest(object):
             self.assertFalse(p.exists())
 
             def my_mkdir(path, mode=0o777):
-                path = str(path)
+                path = six.text_type(path)
                 # Emulate another process that would create the directory
                 # just before we try to create it ourselves.  We do it
                 # in all possible pattern combinations, assuming that this
@@ -1975,14 +1980,14 @@ class _BasePathTest(object):
             p12 = p / 'dir1' / 'dir2'
 
             def _try_func():
-                with mock.patch("pathlib2._normal_accessor.mkdir", my_mkdir):
+                with mock.patch("pathlib2_unicode._normal_accessor.mkdir", my_mkdir):
                     p12.mkdir(parents=True, exist_ok=False)
 
             def _exc_func(exc):
-                self.assertIn(str(p12), concurrently_created)
+                self.assertIn(six.text_type(p12), concurrently_created)
 
             def _else_func():
-                self.assertNotIn(str(p12), concurrently_created)
+                self.assertNotIn(six.text_type(p12), concurrently_created)
 
             pathlib._try_except_fileexistserror(
                 _try_func, _exc_func, _else_func)
@@ -1999,7 +2004,7 @@ class _BasePathTest(object):
         self.assertNotEqual(link.lstat(), target.stat())
         # Symlinking a str target
         link = P / 'dirA' / 'linkAAA'
-        link.symlink_to(str(target))
+        link.symlink_to(six.text_type(target))
         self.assertEqual(link.stat(), target.stat())
         self.assertNotEqual(link.lstat(), target.stat())
         self.assertFalse(link.is_dir())
@@ -2056,7 +2061,7 @@ class _BasePathTest(object):
     @unittest.skipIf(android_not_root, "mkfifo not allowed, non root user")
     def test_is_fifo_true(self):
         P = self.cls(BASE, 'myfifo')
-        os.mkfifo(str(P))
+        os.mkfifo(six.text_type(P))
         self.assertTrue(P.is_fifo())
         self.assertFalse(P.is_socket())
         self.assertFalse(P.is_file())
@@ -2074,10 +2079,10 @@ class _BasePathTest(object):
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.addCleanup(sock.close)
         try:
-            sock.bind(str(P))
+            sock.bind(six.text_type(P))
         except OSError as e:
-            if "AF_UNIX path too long" in str(e):
-                self.skipTest("cannot bind Unix socket: " + str(e))
+            if "AF_UNIX path too long" in six.text_type(e):
+                self.skipTest("cannot bind Unix socket: " + six.text_type(e))
         self.assertTrue(P.is_socket())
         self.assertFalse(P.is_fifo())
         self.assertFalse(P.is_file())
@@ -2113,6 +2118,7 @@ class _BasePathTest(object):
             pp = pickle.loads(dumped)
             self.assertEqual(pp.stat(), p.stat())
 
+    @unittest.skipIf(six.PY2, 'no unicode interning for python2')
     def test_parts_interning(self):
         P = self.cls
         p = P('/usr/bin/foo')
@@ -2133,16 +2139,16 @@ class _BasePathTest(object):
         # Resolve absolute paths
         p = (P / 'link0').resolve()
         self.assertEqual(p, P)
-        self.assertEqual(str(p), BASE)
+        self.assertEqual(six.text_type(p), BASE)
         p = (P / 'link1').resolve()
         self.assertEqual(p, P)
-        self.assertEqual(str(p), BASE)
+        self.assertEqual(six.text_type(p), BASE)
         p = (P / 'link2').resolve()
         self.assertEqual(p, P)
-        self.assertEqual(str(p), BASE)
+        self.assertEqual(six.text_type(p), BASE)
         p = (P / 'link3').resolve()
         self.assertEqual(p, P)
-        self.assertEqual(str(p), BASE)
+        self.assertEqual(six.text_type(p), BASE)
 
         # Resolve relative paths
         old_path = os.getcwd()
@@ -2150,16 +2156,16 @@ class _BasePathTest(object):
         try:
             p = self.cls('link0').resolve()
             self.assertEqual(p, P)
-            self.assertEqual(str(p), BASE)
+            self.assertEqual(six.text_type(p), BASE)
             p = self.cls('link1').resolve()
             self.assertEqual(p, P)
-            self.assertEqual(str(p), BASE)
+            self.assertEqual(six.text_type(p), BASE)
             p = self.cls('link2').resolve()
             self.assertEqual(p, P)
-            self.assertEqual(str(p), BASE)
+            self.assertEqual(six.text_type(p), BASE)
             p = self.cls('link3').resolve()
             self.assertEqual(p, P)
-            self.assertEqual(str(p), BASE)
+            self.assertEqual(six.text_type(p), BASE)
         finally:
             os.chdir(old_path)
 
